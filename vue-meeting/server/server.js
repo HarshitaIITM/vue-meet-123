@@ -10,17 +10,18 @@ const path = require('path');
 const { v4: uuid } = require('uuid');
 const axios = require('axios');
 const recorder = require('record-screen');
+const recordScreen = require('record-screen')
+const { Recorder } = require('record-screen');
+const { exec } = require('child_process');
+let recorderInstance = null;
+let outputFile = '';
+const outputFilePath = 'output.mp4'; // Adjust output path as needed
 let recordingProcess = null;
-let outputFile = null;
 
 const DSS_URL = process.env.DSS_URL || 'http://localhost:3000';
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname ,'./../dist')));
-
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, './../dist', 'index.html'));
-});
 
 // using cors to allow cross-origin requests
 const cors = require('cors');
@@ -65,55 +66,52 @@ app.post('/createRoom', async (req, res) => {
     }
 });
 
-
-app.get('/startRecording', async (req, res) => {
-    console.log("start called1")
-    const options = {
-      width: 1920,
-      height: 1080,
-      output: './uploads/output.mp4', // Output file path in public directory
-      framerate: 30,
-    };
-  
-    if (!recordingProcess) {
-        console.log("start called")
-      try {
-        outputFile = path.resolve(__dirname, options.output);
-        recordingProcess = await recorder(options);
-        res.send('Recording started.');
-      } catch (err) {
-        console.error('Recording error:', err);
-        res.status(500).send('Error starting recording.');
-      }
-    } else {
+app.get('/startRecording', (req, res) => {
+  console.log("start called")
+  if (!recordingProcess) {
+      const command = `ffmpeg -f gdigrab -framerate 30 -i desktop ${outputFilePath}`;
+      console.log("start called 2")
+      recordingProcess = exec(command, (error, stdout, stderr) => {
+        console.log("start called 3")
+          if (error) {
+              console.error('Recording error:', error);
+              res.status(500).send('Error starting recording.');
+          } else {
+              console.log('Recording started.');
+              res.json({ message: 'Recording started.' });
+          }
+      });
+  } else {
       res.send('Recording already in progress.');
-    }
-  });
-  app.get('/stopRecording', (req, res) => {
-    console.log("stop called")
-    if (recordingProcess) {
+  }
+});
+
+app.get('/stopRecording', (req, res) => {
+  console.log("stop called")
+  if (recordingProcess) {
       recordingProcess.kill();
       recordingProcess = null;
       res.set({
-        'Content-Type': 'video/mp4',
-        'Content-Disposition': 'inline; filename=output.mp4', // or 'attachment; filename=output.mp4'
+          'Content-Type': 'video/mp4',
+          'Content-Disposition': 'inline; filename=output.mp4'
       });
-      res.sendFile(outputFile, (err) => {
-        if (err) {
-          console.error('Error sending file:', err);
-          res.status(500).send('Error sending file.');
-        } else {
-          console.log('File sent successfully.');
-          // Optionally, delete the file after sending if needed
-          // fs.unlinkSync(outputFile);
-        }
+      res.download(outputFilePath, 'output.mp4', (err) => {
+          if (err) {
+              console.error('Error sending file:', err);
+              res.status(500).send('Error sending file.');
+          } else {
+              console.log('File sent successfully.');
+          }
       });
-    } else {
+  } else {
       res.status(404).send('No recording in progress.');
-    }
-  });
-  
+  }
+});
 
+
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, './../dist', 'index.html'));
+});
 
 
 

@@ -404,6 +404,7 @@ methods: {
   async StartRecording() {
   try {
     const response = await axios.get(`${URL}/startRecording`);
+    console.log("respnose1",response)
     if (response.status === 200) {
       console.log('Recording started.');
       this.recording = true;
